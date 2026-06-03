@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.User;
 
@@ -44,7 +45,7 @@ public class UserController {
 
         if (!users.containsKey(user.getId())) {
             log.warn("Пользователь с id={} не найден", user.getId());
-            throw new ValidationException("Пользователь с таким id не найден");
+            throw new NotFoundException("Пользователь с таким id не найден");
         }
 
         fillEmptyName(user);
