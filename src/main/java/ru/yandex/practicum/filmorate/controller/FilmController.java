@@ -57,27 +57,41 @@ public class FilmController {
 
     private void validateFilm(Film film) {
         if (film == null) {
-            log.warn("Передан пустой фильм");
+            log.warn("Передан пустой объект Film");
             throw new ValidationException("Фильм не может быть пустым");
         }
 
         if (film.getName() == null || film.getName().isBlank()) {
-            log.warn("Название фильма пустое");
+            log.warn("Некорректный фильм id={}: название пустое", film.getId());
             throw new ValidationException("Название фильма не может быть пустым");
         }
 
-        if (film.getDescription() != null && film.getDescription().length() > MAX_DESCRIPTION_LENGTH) {
-            log.warn("Описание фильма длиннее {} символов", MAX_DESCRIPTION_LENGTH);
+        if (film.getDescription() != null
+                && film.getDescription().length() > MAX_DESCRIPTION_LENGTH) {
+            log.warn(
+                    "Некорректный фильм id={}: описание длиннее {} символов",
+                    film.getId(),
+                    MAX_DESCRIPTION_LENGTH
+            );
             throw new ValidationException("Описание фильма не может быть длиннее 200 символов");
         }
 
-        if (film.getReleaseDate() == null || film.getReleaseDate().isBefore(FIRST_FILM_RELEASE_DATE)) {
-            log.warn("Некорректная дата релиза фильма: {}", film.getReleaseDate());
+        if (film.getReleaseDate() == null
+                || film.getReleaseDate().isBefore(FIRST_FILM_RELEASE_DATE)) {
+            log.warn(
+                    "Некорректный фильм id={}: дата релиза {} раньше допустимой",
+                    film.getId(),
+                    film.getReleaseDate()
+            );
             throw new ValidationException("Дата релиза не может быть раньше 28 декабря 1895 года");
         }
 
         if (film.getDuration() <= 0) {
-            log.warn("Некорректная продолжительность фильма: {}", film.getDuration());
+            log.warn(
+                    "Некорректный фильм id={}: продолжительность {}",
+                    film.getId(),
+                    film.getDuration()
+            );
             throw new ValidationException("Продолжительность фильма должна быть положительным числом");
         }
     }

@@ -56,23 +56,46 @@ public class UserController {
 
     private void validateUser(User user) {
         if (user == null) {
-            log.warn("Передан пустой пользователь");
+            log.warn("Передан пустой объект User");
             throw new ValidationException("Пользователь не может быть пустым");
         }
 
-        if (user.getEmail() == null || user.getEmail().isBlank() || !user.getEmail().contains("@")) {
-            log.warn("Некорректная электронная почта: {}", user.getEmail());
-            throw new ValidationException("Электронная почта не может быть пустой и должна содержать @");
+        if (user.getEmail() == null
+                || user.getEmail().isBlank()
+                || !user.getEmail().contains("@")) {
+            log.warn(
+                    "Некорректная электронная почта пользователя id={}: {}",
+                    user.getId(),
+                    user.getEmail()
+            );
+            throw new ValidationException(
+                    "Электронная почта не может быть пустой и должна содержать @"
+            );
         }
 
-        if (user.getLogin() == null || user.getLogin().isBlank() || user.getLogin().contains(" ")) {
-            log.warn("Некорректный логин: {}", user.getLogin());
-            throw new ValidationException("Логин не может быть пустым и содержать пробелы");
+        if (user.getLogin() == null
+                || user.getLogin().isBlank()
+                || user.getLogin().contains(" ")) {
+            log.warn(
+                    "Некорректный логин пользователя id={}: {}",
+                    user.getId(),
+                    user.getLogin()
+            );
+            throw new ValidationException(
+                    "Логин не может быть пустым и содержать пробелы"
+            );
         }
 
-        if (user.getBirthday() == null || user.getBirthday().isAfter(LocalDate.now())) {
-            log.warn("Некорректная дата рождения: {}", user.getBirthday());
-            throw new ValidationException("Дата рождения не может быть в будущем");
+        if (user.getBirthday() == null
+                || user.getBirthday().isAfter(LocalDate.now())) {
+            log.warn(
+                    "Некорректная дата рождения пользователя id={}: {}",
+                    user.getId(),
+                    user.getBirthday()
+            );
+            throw new ValidationException(
+                    "Дата рождения не может быть в будущем"
+            );
         }
     }
 
