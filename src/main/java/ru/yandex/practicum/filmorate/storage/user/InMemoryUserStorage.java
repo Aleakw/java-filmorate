@@ -1,0 +1,60 @@
+package ru.yandex.practicum.filmorate.storage.user;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+import ru.yandex.practicum.filmorate.exception.NotFoundException;
+import ru.yandex.practicum.filmorate.model.User;
+
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+@Slf4j
+@Component
+public class InMemoryUserStorage implements UserStorage {
+    private final Map<Long, User> users = new LinkedHashMap<>();
+    private long nextId = 1;
+
+    @Override
+    public Collection<User> findAll() {
+        return users.values();
+    }
+
+    @Override
+    public User findById(long id) {
+        User user = users.get(id);
+        if (user == null) {
+            log.warn("Пользователь с id={} не найден", id);
+            throw new NotFoundException("Пользователь с id=" + id + " не найден");
+        }
+        return user;
+    }
+
+    @Override
+    public User add(User user) {
+        user.setId(nextId++);
+        users.put(user.getId(), user);
+        log.info("Добавлен пользователь: {}", user);
+        return user;
+    }
+
+    @Override
+    public User update(User user) {
+        if (!users.containsKey(user.getId())) {
+            log.warn("Пользователь с id={} не найден для обновления", user.getId());
+            throw new NotFoundException("Пользователь с id=" + user.getId() + " не найден");
+        }
+        users.put(user.getId(), user);
+        log.info("Обновлён пользователь: {}", user);
+        return user;
+    }
+
+    @Override
+    public void delete(long id) {
+        if (users.remove(id) == null) {
+            log.warn("Пользователь с id={} не найден для удаления", id);
+            throw new NotFoundException("Пользователь с id=" + id + " не найден");
+        }
+        log.info("Удалён пользователь с id={}", id);
+    }
+}
