@@ -1,7 +1,10 @@
 package ru.yandex.practicum.filmorate.controller;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,11 +22,11 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Slf4j
+@Validated
 @RestController
 @RequestMapping("/films")
 public class FilmController {
     private static final LocalDate FIRST_FILM_RELEASE_DATE = LocalDate.of(1895, 12, 28);
-    private static final int MAX_DESCRIPTION_LENGTH = 200;
     private final FilmService filmService;
 
     @Autowired
@@ -37,61 +40,41 @@ public class FilmController {
     }
 
     @GetMapping("/{id}")
-    public Film getFilm(@PathVariable long id) {
+    public Film getFilm(@PathVariable @Positive long id) {
         return filmService.findById(id);
     }
 
     @PostMapping
-    public Film createFilm(@RequestBody Film film) {
-        validateFilm(film);
+    public Film createFilm(@Valid @RequestBody Film film) {
+        validateFilmReleaseDate(film);
         return filmService.add(film);
     }
 
     @PutMapping
-    public Film updateFilm(@RequestBody Film film) {
-        validateFilm(film);
+    public Film updateFilm(@Valid @RequestBody Film film) {
+        validateFilmReleaseDate(film);
         return filmService.update(film);
     }
 
     @PutMapping("/{id}/like/{userId}")
-    public void addLike(@PathVariable long id, @PathVariable long userId) {
+    public void addLike(@PathVariable @Positive long id, @PathVariable @Positive long userId) {
         filmService.addLike(id, userId);
     }
 
     @DeleteMapping("/{id}/like/{userId}")
-    public void deleteLike(@PathVariable long id, @PathVariable long userId) {
+    public void deleteLike(@PathVariable @Positive long id, @PathVariable @Positive long userId) {
         filmService.deleteLike(id, userId);
     }
 
     @GetMapping("/popular")
-    public List<Film> getPopularFilms(@RequestParam(defaultValue = "10") int count) {
-        if (count <= 0) {
-            log.warn("Некорректный count={}", count);
-            throw new ValidationException("Количество популярных фильмов должно быть положительным");
-        }
+    public List<Film> getPopularFilms(@RequestParam(defaultValue = "10") @Positive int count) {
         return filmService.getPopularFilms(count);
     }
 
-    private void validateFilm(Film film) {
-        if (film == null) {
-            log.warn("Передан пустой объект Film");
-            throw new ValidationException("Фильм не может быть пустым");
-        }
-        if (film.getName() == null || film.getName().isBlank()) {
-            log.warn("Некорректный фильм id={}: название пустое", film.getId());
-            throw new ValidationException("Название фильма не может быть пустым");
-        }
-        if (film.getDescription() != null && film.getDescription().length() > MAX_DESCRIPTION_LENGTH) {
-            log.warn("Некорректный фильм id={}: описание длиннее {} символов", film.getId(), MAX_DESCRIPTION_LENGTH);
-            throw new ValidationException("Описание фильма не может быть длиннее 200 символов");
-        }
-        if (film.getReleaseDate() == null || film.getReleaseDate().isBefore(FIRST_FILM_RELEASE_DATE)) {
+    private void validateFilmReleaseDate(Film film) {
+        if (film.getReleaseDate().isBefore(FIRST_FILM_RELEASE_DATE)) {
             log.warn("Некорректный фильм id={}: дата релиза {} раньше допустимой", film.getId(), film.getReleaseDate());
             throw new ValidationException("Дата релиза не может быть раньше 28 декабря 1895 года");
-        }
-        if (film.getDuration() <= 0) {
-            log.warn("Некорректный фильм id={}: продолжительность {}", film.getId(), film.getDuration());
-            throw new ValidationException("Продолжительность фильма должна быть положительным числом");
         }
     }
 }
