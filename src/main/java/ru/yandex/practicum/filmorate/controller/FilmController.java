@@ -46,13 +46,13 @@ public class FilmController {
 
     @PostMapping
     public Film createFilm(@Valid @RequestBody Film film) {
-        validateFilmReleaseDate(film);
+        validateFilm(film);
         return filmService.add(film);
     }
 
     @PutMapping
     public Film updateFilm(@Valid @RequestBody Film film) {
-        validateFilmReleaseDate(film);
+        validateFilm(film);
         return filmService.update(film);
     }
 
@@ -71,10 +71,25 @@ public class FilmController {
         return filmService.getPopularFilms(count);
     }
 
-    private void validateFilmReleaseDate(Film film) {
-        if (film.getReleaseDate().isBefore(FIRST_FILM_RELEASE_DATE)) {
+    private void validateFilm(Film film) {
+        if (film.getName() == null || film.getName().isBlank()) {
+            log.warn("Некорректный фильм id={}: название не может быть пустым", film.getId());
+            throw new ValidationException("Название фильма не может быть пустым");
+        }
+
+        if (film.getDescription() != null && film.getDescription().length() > 200) {
+            log.warn("Некорректный фильм id={}: описание длиннее 200 символов", film.getId());
+            throw new ValidationException("Описание фильма не может быть длиннее 200 символов");
+        }
+
+        if (film.getReleaseDate() == null || film.getReleaseDate().isBefore(FIRST_FILM_RELEASE_DATE)) {
             log.warn("Некорректный фильм id={}: дата релиза {} раньше допустимой", film.getId(), film.getReleaseDate());
-            throw new ValidationException("Дата релиза не может быть раньше 28 декабря 1895 года");
+            throw new ValidationException("Дата релиза не может быть пустой или раньше 28 декабря 1895 года");
+        }
+
+        if (film.getDuration() <= 0) {
+            log.warn("Некорректный фильм id={}: продолжительность должна быть положительной", film.getId());
+            throw new ValidationException("Продолжительность фильма должна быть положительной");
         }
     }
 }
