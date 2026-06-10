@@ -57,4 +57,18 @@ public class InMemoryFilmStorage implements FilmStorage {
         }
         log.info("Удалён фильм с id={}", id);
     }
+
+    @Override
+    public void addLike(long filmId, long userId) {
+        Film film = findById(filmId);
+        film.getLikes().add(userId);
+        log.info("Пользователь id={} поставил лайк фильму id={}", userId, filmId);
+    }
+
+    @Override
+    public void deleteLike(long filmId, long userId) {
+        Film film = findById(filmId);
+        film.getLikes().remove(userId);
+        log.info("Пользователь id={} удалил лайк у фильма id={}", userId, filmId);
+    }
 }
