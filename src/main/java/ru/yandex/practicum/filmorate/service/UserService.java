@@ -47,18 +47,10 @@ public class UserService {
     }
 
     public List<User> getFriends(long userId) {
-        User user = userStorage.findById(userId);
-        return user.getFriends().stream()
-                .map(userStorage::findById)
-                .toList();
+        return userStorage.findFriends(userId);
     }
 
     public List<User> getCommonFriends(long userId, long otherId) {
-        User user = userStorage.findById(userId);
-        User otherUser = userStorage.findById(otherId);
-        return user.getFriends().stream()
-                .filter(otherUser.getFriends()::contains)
-                .map(userStorage::findById)
-                .toList();
+        return userStorage.findCommonFriends(userId, otherId);
     }
 }

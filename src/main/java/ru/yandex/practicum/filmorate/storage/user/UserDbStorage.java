@@ -14,9 +14,10 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Primary
@@ -29,17 +30,9 @@ public class UserDbStorage implements UserStorage {
     public Collection<User> findAll() {
         List<User> users = jdbcTemplate.query(
                 "SELECT user_id, email, login, name, birthday FROM users ORDER BY user_id",
-                (rs, rowNum) -> {
-                    User user = new User();
-                    user.setId(rs.getLong("user_id"));
-                    user.setEmail(rs.getString("email"));
-                    user.setLogin(rs.getString("login"));
-                    user.setName(rs.getString("name"));
-                    user.setBirthday(rs.getDate("birthday").toLocalDate());
-                    return user;
-                }
+                (rs, rowNum) -> mapUserWithoutFriends(rs)
         );
-        users.forEach(user -> user.setFriends(findFriendIds(user.getId())));
+        fillFriends(users);
         return users;
     }
 
@@ -47,20 +40,12 @@ public class UserDbStorage implements UserStorage {
     public User findById(long id) {
         User user = jdbcTemplate.query(
                         "SELECT user_id, email, login, name, birthday FROM users WHERE user_id = ?",
-                        (rs, rowNum) -> {
-                            User foundUser = new User();
-                            foundUser.setId(rs.getLong("user_id"));
-                            foundUser.setEmail(rs.getString("email"));
-                            foundUser.setLogin(rs.getString("login"));
-                            foundUser.setName(rs.getString("name"));
-                            foundUser.setBirthday(rs.getDate("birthday").toLocalDate());
-                            return foundUser;
-                        },
+                        (rs, rowNum) -> mapUserWithoutFriends(rs),
                         id
                 ).stream()
                 .findFirst()
                 .orElseThrow(() -> new NotFoundException("Пользователь с id=" + id + " не найден"));
-        user.setFriends(findFriendIds(id));
+        fillFriends(List.of(user));
         return user;
     }
 
@@ -126,11 +111,74 @@ public class UserDbStorage implements UserStorage {
         log.info("Пользователь id={} удалил из друзей пользователя id={}", userId, friendId);
     }
 
-    private Set<Long> findFriendIds(long userId) {
-        return new HashSet<>(jdbcTemplate.query(
-                "SELECT friend_id FROM user_friends WHERE user_id = ?",
-                (rs, rowNum) -> rs.getLong("friend_id"),
+    @Override
+    public List<User> findFriends(long userId) {
+        findById(userId);
+        List<User> friends = jdbcTemplate.query(
+                "SELECT u.user_id, u.email, u.login, u.name, u.birthday "
+                        + "FROM users u "
+                        + "JOIN user_friends uf ON u.user_id = uf.friend_id "
+                        + "WHERE uf.user_id = ? "
+                        + "ORDER BY u.user_id",
+                (rs, rowNum) -> mapUserWithoutFriends(rs),
                 userId
-        ));
+        );
+        fillFriends(friends);
+        return friends;
+    }
+
+    @Override
+    public List<User> findCommonFriends(long userId, long otherId) {
+        findById(userId);
+        findById(otherId);
+        List<User> commonFriends = jdbcTemplate.query(
+                "SELECT u.user_id, u.email, u.login, u.name, u.birthday "
+                        + "FROM users u "
+                        + "JOIN user_friends uf ON u.user_id = uf.friend_id "
+                        + "JOIN user_friends other_uf ON u.user_id = other_uf.friend_id "
+                        + "WHERE uf.user_id = ? AND other_uf.user_id = ? "
+                        + "ORDER BY u.user_id",
+                (rs, rowNum) -> mapUserWithoutFriends(rs),
+                userId,
+                otherId
+        );
+        fillFriends(commonFriends);
+        return commonFriends;
+    }
+
+    private User mapUserWithoutFriends(java.sql.ResultSet rs) throws java.sql.SQLException {
+        User user = new User();
+        user.setId(rs.getLong("user_id"));
+        user.setEmail(rs.getString("email"));
+        user.setLogin(rs.getString("login"));
+        user.setName(rs.getString("name"));
+        user.setBirthday(rs.getDate("birthday").toLocalDate());
+        return user;
+    }
+
+    private void fillFriends(List<User> users) {
+        if (users.isEmpty()) {
+            return;
+        }
+
+        Map<Long, User> usersById = users.stream()
+                .collect(Collectors.toMap(User::getId, user -> user, (first, second) -> first, LinkedHashMap::new));
+        String placeholders = createPlaceholders(usersById.size());
+        Object[] userIds = usersById.keySet().toArray();
+
+        jdbcTemplate.query(
+                "SELECT user_id, friend_id FROM user_friends WHERE user_id IN (" + placeholders + ")",
+                rs -> {
+                    User user = usersById.get(rs.getLong("user_id"));
+                    if (user != null) {
+                        user.getFriends().add(rs.getLong("friend_id"));
+                    }
+                },
+                userIds
+        );
+    }
+
+    private String createPlaceholders(int count) {
+        return "?,".repeat(count).replaceAll(",$", "");
     }
 }

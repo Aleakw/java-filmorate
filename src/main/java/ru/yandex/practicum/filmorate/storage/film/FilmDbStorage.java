@@ -15,11 +15,15 @@ import ru.yandex.practicum.filmorate.model.Mpa;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Primary
@@ -36,7 +40,7 @@ public class FilmDbStorage implements FilmStorage {
                         + "FROM films f LEFT JOIN mpa m ON f.mpa_id = m.mpa_id ORDER BY f.film_id",
                 (rs, rowNum) -> mapFilmWithoutCollections(rs)
         );
-        films.forEach(this::fillCollections);
+        fillCollections(films);
         return films;
     }
 
@@ -51,7 +55,7 @@ public class FilmDbStorage implements FilmStorage {
                 ).stream()
                 .findFirst()
                 .orElseThrow(() -> new NotFoundException("Фильм с id=" + id + " не найден"));
-        fillCollections(film);
+        fillCollections(List.of(film));
         return film;
     }
 
@@ -143,40 +147,58 @@ public class FilmDbStorage implements FilmStorage {
         return film;
     }
 
-    private void fillCollections(Film film) {
-        film.setGenres(findGenres(film.getId()));
-        film.setLikes(findLikes(film.getId()));
-    }
+    private void fillCollections(List<Film> films) {
+        if (films.isEmpty()) {
+            return;
+        }
 
-    private Set<Genre> findGenres(long filmId) {
-        return new LinkedHashSet<>(jdbcTemplate.query(
-                "SELECT g.genre_id, g.name FROM genres g "
-                        + "JOIN film_genres fg ON g.genre_id = fg.genre_id "
-                        + "WHERE fg.film_id = ? ORDER BY g.genre_id",
-                (rs, rowNum) -> new Genre(rs.getInt("genre_id"), rs.getString("name")),
-                filmId
-        ));
-    }
+        Map<Long, Film> filmsById = films.stream()
+                .collect(Collectors.toMap(Film::getId, film -> film, (first, second) -> first, LinkedHashMap::new));
+        String placeholders = createPlaceholders(filmsById.size());
+        Object[] filmIds = filmsById.keySet().toArray();
 
-    private Set<Long> findLikes(long filmId) {
-        return new HashSet<>(jdbcTemplate.query(
-                "SELECT user_id FROM film_likes WHERE film_id = ?",
-                (rs, rowNum) -> rs.getLong("user_id"),
-                filmId
-        ));
+        jdbcTemplate.query(
+                "SELECT fg.film_id, g.genre_id, g.name "
+                        + "FROM film_genres fg "
+                        + "JOIN genres g ON fg.genre_id = g.genre_id "
+                        + "WHERE fg.film_id IN (" + placeholders + ") "
+                        + "ORDER BY fg.film_id, g.genre_id",
+                rs -> {
+                    Film film = filmsById.get(rs.getLong("film_id"));
+                    if (film != null) {
+                        film.getGenres().add(new Genre(rs.getInt("genre_id"), rs.getString("name")));
+                    }
+                },
+                filmIds
+        );
+
+        jdbcTemplate.query(
+                "SELECT film_id, user_id FROM film_likes WHERE film_id IN (" + placeholders + ")",
+                rs -> {
+                    Film film = filmsById.get(rs.getLong("film_id"));
+                    if (film != null) {
+                        film.getLikes().add(rs.getLong("user_id"));
+                    }
+                },
+                filmIds
+        );
     }
 
     private void saveGenres(Film film) {
-        if (film.getGenres() == null) {
+        if (film.getGenres() == null || film.getGenres().isEmpty()) {
             return;
         }
-        for (Genre genre : film.getGenres()) {
-            jdbcTemplate.update(
-                    "MERGE INTO film_genres (film_id, genre_id) KEY (film_id, genre_id) VALUES (?, ?)",
-                    film.getId(),
-                    genre.getId()
-            );
-        }
+
+        List<Genre> genres = new ArrayList<>(film.getGenres());
+        jdbcTemplate.batchUpdate(
+                "MERGE INTO film_genres (film_id, genre_id) KEY (film_id, genre_id) VALUES (?, ?)",
+                genres,
+                genres.size(),
+                (ps, genre) -> {
+                    ps.setLong(1, film.getId());
+                    ps.setInt(2, genre.getId());
+                }
+        );
     }
 
     private void validateMpa(Film film) {
@@ -194,18 +216,25 @@ public class FilmDbStorage implements FilmStorage {
     }
 
     private void validateGenres(Film film) {
-        if (film.getGenres() == null) {
+        if (film.getGenres() == null || film.getGenres().isEmpty()) {
             return;
         }
-        for (Genre genre : film.getGenres()) {
-            Integer count = jdbcTemplate.queryForObject(
-                    "SELECT COUNT(*) FROM genres WHERE genre_id = ?",
-                    Integer.class,
-                    genre.getId()
-            );
-            if (count == null || count == 0) {
-                throw new NotFoundException("Жанр с id=" + genre.getId() + " не найден");
-            }
+
+        Set<Integer> genreIds = film.getGenres().stream()
+                .map(Genre::getId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        String placeholders = createPlaceholders(genreIds.size());
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM genres WHERE genre_id IN (" + placeholders + ")",
+                Integer.class,
+                genreIds.toArray()
+        );
+        if (count == null || count != genreIds.size()) {
+            throw new NotFoundException("Один или несколько жанров не найдены");
         }
+    }
+
+    private String createPlaceholders(int count) {
+        return "?,".repeat(count).replaceAll(",$", "");
     }
 }
