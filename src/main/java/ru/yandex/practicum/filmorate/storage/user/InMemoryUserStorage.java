@@ -8,6 +8,7 @@ import ru.yandex.practicum.filmorate.model.User;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.List;
 
 @Slf4j
 @Component
@@ -56,5 +57,39 @@ public class InMemoryUserStorage implements UserStorage {
             throw new NotFoundException("Пользователь с id=" + id + " не найден");
         }
         log.info("Удалён пользователь с id={}", id);
+    }
+
+    @Override
+    public void addFriend(long userId, long friendId) {
+        User user = findById(userId);
+        findById(friendId);
+        user.getFriends().add(friendId);
+        log.info("Пользователь id={} добавил в друзья пользователя id={}", userId, friendId);
+    }
+
+    @Override
+    public void deleteFriend(long userId, long friendId) {
+        User user = findById(userId);
+        findById(friendId);
+        user.getFriends().remove(friendId);
+        log.info("Пользователь id={} удалил из друзей пользователя id={}", userId, friendId);
+    }
+
+    @Override
+    public List<User> findFriends(long userId) {
+        User user = findById(userId);
+        return user.getFriends().stream()
+                .map(this::findById)
+                .toList();
+    }
+
+    @Override
+    public List<User> findCommonFriends(long userId, long otherId) {
+        User user = findById(userId);
+        User otherUser = findById(otherId);
+        return user.getFriends().stream()
+                .filter(otherUser.getFriends()::contains)
+                .map(this::findById)
+                .toList();
     }
 }
